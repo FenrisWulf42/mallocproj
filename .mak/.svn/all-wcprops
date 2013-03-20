@@ -1,0 +1,71 @@
+K 25
+svn:wc:ra_dav:version-url
+V 51
+/r/comp221/!svn/ver/354/www/trunk/test-cases/malloc
+END
+expr-bal.rep
+K 25
+svn:wc:ra_dav:version-url
+V 64
+/r/comp221/!svn/ver/354/www/trunk/test-cases/malloc/expr-bal.rep
+END
+random-bal.rep
+K 25
+svn:wc:ra_dav:version-url
+V 66
+/r/comp221/!svn/ver/354/www/trunk/test-cases/malloc/random-bal.rep
+END
+realloc-bal.rep
+K 25
+svn:wc:ra_dav:version-url
+V 67
+/r/comp221/!svn/ver/354/www/trunk/test-cases/malloc/realloc-bal.rep
+END
+random2-bal.rep
+K 25
+svn:wc:ra_dav:version-url
+V 67
+/r/comp221/!svn/ver/354/www/trunk/test-cases/malloc/random2-bal.rep
+END
+realloc2-bal.rep
+K 25
+svn:wc:ra_dav:version-url
+V 68
+/r/comp221/!svn/ver/354/www/trunk/test-cases/malloc/realloc2-bal.rep
+END
+binary-bal.rep
+K 25
+svn:wc:ra_dav:version-url
+V 66
+/r/comp221/!svn/ver/354/www/trunk/test-cases/malloc/binary-bal.rep
+END
+binary2-bal.rep
+K 25
+svn:wc:ra_dav:version-url
+V 67
+/r/comp221/!svn/ver/354/www/trunk/test-cases/malloc/binary2-bal.rep
+END
+coalescing-bal.rep
+K 25
+svn:wc:ra_dav:version-url
+V 70
+/r/comp221/!svn/ver/354/www/trunk/test-cases/malloc/coalescing-bal.rep
+END
+cp-decl-bal.rep
+K 25
+svn:wc:ra_dav:version-url
+V 67
+/r/comp221/!svn/ver/354/www/trunk/test-cases/malloc/cp-decl-bal.rep
+END
+cccp-bal.rep
+K 25
+svn:wc:ra_dav:version-url
+V 64
+/r/comp221/!svn/ver/354/www/trunk/test-cases/malloc/cccp-bal.rep
+END
+amptjp-bal.rep
+K 25
+svn:wc:ra_dav:version-url
+V 66
+/r/comp221/!svn/ver/354/www/trunk/test-cases/malloc/amptjp-bal.rep
+END
