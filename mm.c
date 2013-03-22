@@ -90,6 +90,8 @@ static void checkblock(void *bp);
 static void checkheap(bool verbose);
 static void printblock(void *bp); 
 
+void attatch_blocks(uintptr_t next_block_pred, uintptr_t next_block_succ);
+
 /* 
  * Requires:
  *   None.
@@ -246,6 +248,24 @@ mm_realloc(void *ptr, size_t size)
 	return (newptr);
 }
 
+void 
+attatch_blocks(uintptr_t block_pred, uintptr_t block_succ) 
+{
+	if (block_succ && block_pred) {
+			PUT(PREV_PTR(block_succ), block_pred);
+			PUT(NEXT_PTR(block_pred), block_succ);
+		}
+		else if (block_succ && !block_pred) { // Means next block is beggining of list
+			PUT(PREV_PTR(block_succ), 0);
+			beginning_listp = block_succ;
+		}
+		else if (!block_succ && block_pred) {
+			PUT(NEXT_PTR(block_pred), 0);	
+		}
+		else {
+			beginning_listp = 0;
+		}
+}
 /*
  * The following routines are internal helper routines.
  */
@@ -266,20 +286,25 @@ coalesce(void *bp)
 	bool prev_alloc = GET_ALLOC(FTRP(PREV_BLKP(bp)));
 	bool next_alloc = GET_ALLOC(HDRP(NEXT_BLKP(bp)));
 
-	if ((PREV_BLKP(bp)) == bp) {
+	if ((PREV_BLKP(bp)) == bp) { // Happens if we're on the first ellement, we don't want to allocate before our heap space.
 		prev_alloc = 1;
-//		printf("%p\n", (void*)prev_alloc);
-//		printf("asdfasdffsda;ljk %p adfsl;jk %p\n", bp, PREV_BLKP(bp));
 	}
 	size_t size = GET_SIZE(HDRP(bp));
 	
 	int D = -1;
+	
 	if (8==D) {
 		printf("BSWB");
 	}
 	
+	uintptr_t next_block_succ = GET(NEXT_PTR(NEXT_BLKP(bp)));
+	uintptr_t next_block_pred = GET(PREV_PTR(NEXT_BLKP(bp)));
+	
+	uintptr_t prev_block_succ = GET(NEXT_PTR(PREV_BLKP(bp)));
+	uintptr_t prev_block_pred = GET(PREV_PTR(PREV_BLKP(bp)));
+
 	if (prev_alloc && next_alloc) {                 /* Case 1 */
-		//printf("1\n");
+	//	printf("1\n");
 		return (bp);
 	} else if (prev_alloc && !next_alloc) {         /* Case 2 */
 		size += GET_SIZE(HDRP(NEXT_BLKP(bp)));
@@ -287,29 +312,8 @@ coalesce(void *bp)
 			last_bp = bp;
 		}
 		
-		uintptr_t next_block_succ = GET(NEXT_PTR(NEXT_BLKP(bp)));
-		uintptr_t next_block_pred = GET(PREV_PTR(NEXT_BLKP(bp)));
 		
-	//	printf("NEXT: ");
-	//	printblock(NEXT_BLKP(bp));
-		if (next_block_succ && next_block_pred) {
-	//		printf("a\n");
-			PUT(PREV_PTR(next_block_succ), next_block_pred);
-			PUT(NEXT_PTR(next_block_pred), next_block_succ);
-		}
-		else if (next_block_succ && !next_block_pred) { // Means next block is beggining of list
-	//		printf("b\n");
-			PUT(PREV_PTR(next_block_succ), 0);
-			beginning_listp = next_block_succ;
-		}
-		else if (!next_block_succ && next_block_pred) {
-		//	printf("c\n");
-			PUT(NEXT_PTR(next_block_pred), 0);	
-		}
-		else {
-			//printf("d\n");
-			beginning_listp = 0;
-		}
+		attatch_blocks(next_block_pred, next_block_succ);
 		
 		PUT(HDRP(bp), PACK(size, 0));
 		PUT(FTRP(bp), PACK(size, 0));
@@ -321,26 +325,8 @@ coalesce(void *bp)
 			last_bp = PREV_BLKP(bp);
 		}
 		//TODO: Don't do this.
-		uintptr_t prev_block_succ = GET(NEXT_PTR(PREV_BLKP(bp)));
-		uintptr_t prev_block_pred = GET(PREV_PTR(PREV_BLKP(bp)));
 				
-		if (prev_block_succ && prev_block_pred) {
-		//	printf("cur bp %p prev BP %p SIZE %p \n", bp, (void *)PREV_BLKP(bp), (void *)GET_SIZE(HDRP(bp)));
-			
-		//	printf("PREV %p SUCC %p \n", (void *)prev_block_pred, (void *)prev_block_succ);
-			PUT(PREV_PTR(prev_block_succ), prev_block_pred);
-			PUT(NEXT_PTR(prev_block_pred), prev_block_succ);
-		}
-		else if (prev_block_succ && !prev_block_pred) { // Means next block is beggining of list
-			PUT(PREV_PTR(prev_block_succ), 0);
-			beginning_listp = prev_block_succ;
-		}
-		else if (!prev_block_succ && prev_block_pred) {
-			PUT(NEXT_PTR(prev_block_pred), 0);	
-		}
-		else {
-			beginning_listp = 0;
-		}
+		attatch_blocks(prev_block_pred, prev_block_succ);
 		
 		bp = PREV_BLKP(bp);
 		PUT(HDRP(bp), PACK(size, 0));
@@ -356,45 +342,15 @@ coalesce(void *bp)
 		else if (last_bp == NEXT_BLKP(bp)) {
 			last_bp = PREV_BLKP(bp);
 		}
+						
+		attatch_blocks(next_block_pred, next_block_succ);
 		
-		uintptr_t next_block_succ = GET(NEXT_PTR(NEXT_BLKP(bp)));
-		uintptr_t next_block_pred = GET(PREV_PTR(NEXT_BLKP(bp)));
-					
-		if (next_block_succ && next_block_pred) {
-			PUT(PREV_PTR(next_block_succ), next_block_pred);
-			PUT(NEXT_PTR(next_block_pred), next_block_succ);
-		}
-		else if (next_block_succ && !next_block_pred) { // Means next block is beggining of list
-			PUT(PREV_PTR(next_block_succ), 0);
-			beginning_listp = next_block_succ;
-		}
-		else if (!next_block_succ && next_block_pred) {
-			PUT(NEXT_PTR(next_block_pred), 0);	
-		}
-		else {
-			beginning_listp = 0;
-		}
+		// Need to reset them because might have been changed in attach blocks
+		prev_block_succ = GET(NEXT_PTR(PREV_BLKP(bp)));
+		prev_block_pred = GET(PREV_PTR(PREV_BLKP(bp)));
 		
-		//TODO: Don't do this.
-		uintptr_t prev_block_succ = GET(NEXT_PTR(PREV_BLKP(bp)));
-		uintptr_t prev_block_pred = GET(PREV_PTR(PREV_BLKP(bp)));
-	
-
-		if (prev_block_succ && prev_block_pred) {
-			PUT(PREV_PTR(prev_block_succ), prev_block_pred);
-			PUT(NEXT_PTR(prev_block_pred), prev_block_succ);
-		}
-		else if (prev_block_succ && !prev_block_pred) { // Means next block is beggining of list
-			PUT(PREV_PTR(prev_block_succ), 0);
-			beginning_listp = prev_block_succ;
-		}
-		else if (!prev_block_succ && prev_block_pred) {
-			PUT(NEXT_PTR(prev_block_pred), 0);	
-		}
-		else {
-			beginning_listp = 0;
-		}
-				
+		attatch_blocks(prev_block_pred, prev_block_succ);
+								
 		bp = PREV_BLKP(bp);
 		PUT(HDRP(bp), PACK(size, 0));
 		PUT(FTRP(bp), PACK(size, 0));
@@ -429,6 +385,10 @@ extend_heap(size_t words)
 	
 	//printf("BP %p\n", bp);
 	
+
+	/* Coalesce if the previous block was free. */
+	bp = coalesce(bp) ;
+
 	if (bp == (void*)beginning_listp) {
 		PUT(NEXT_PTR(bp), 0);
 		PUT(PREV_PTR(bp), 0);		
@@ -436,18 +396,15 @@ extend_heap(size_t words)
 	}
 	else {
 
+		PUT(PREV_PTR(bp), 0);
 		PUT(NEXT_PTR(bp), beginning_listp);
 		if (beginning_listp) {
 			PUT(PREV_PTR(beginning_listp), (uintptr_t)bp);
 		}
-		PUT(PREV_PTR(bp), 0);
+		
 			
 		beginning_listp = (uintptr_t)bp;
 	}
-
-	/* Coalesce if the previous block was free. */
-//	return (coalesce(bp));
-	
 
 	return bp;	
 }
