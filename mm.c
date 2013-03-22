@@ -83,6 +83,7 @@ void *first_fit(size_t asize);
 void *explicit_first_fit(size_t asize);
 void *next_fit(size_t asize);
 void *best_fit(size_t asize);
+void *explicit_best_fit(size_t asize);
 
 /* Function prototypes for heap consistency checker routine	s: */
 static void checkblock(void *bp);
@@ -179,11 +180,11 @@ mm_free(void *bp)
 
 	/* Free and coalesce the block. */
 	size = GET_SIZE(HDRP(bp));
-
 	PUT(HDRP(bp), PACK(size, 0));
 	PUT(FTRP(bp), PACK(size, 0));
 	
-	coalesce(bp);
+	
+	bp = coalesce(bp);
 
 	PUT(PREV_PTR(bp), 0);
 	PUT(NEXT_PTR(bp), beginning_listp);
@@ -261,15 +262,24 @@ mm_realloc(void *ptr, size_t size)
 static void *
 coalesce(void *bp) 
 {
-	//printf("bp %p prev: %p \n", bp, PREV_BLKP(bp));
-	
+
 	bool prev_alloc = GET_ALLOC(FTRP(PREV_BLKP(bp)));
 	bool next_alloc = GET_ALLOC(HDRP(NEXT_BLKP(bp)));
 
+	if ((PREV_BLKP(bp)) == bp) {
+		prev_alloc = 1;
+//		printf("%p\n", (void*)prev_alloc);
+//		printf("asdfasdffsda;ljk %p adfsl;jk %p\n", bp, PREV_BLKP(bp));
+	}
 	size_t size = GET_SIZE(HDRP(bp));
-
+	
+	int D = -1;
+	if (8==D) {
+		printf("BSWB");
+	}
+	
 	if (prev_alloc && next_alloc) {                 /* Case 1 */
-		printf("1\n");
+		//printf("1\n");
 		return (bp);
 	} else if (prev_alloc && !next_alloc) {         /* Case 2 */
 		size += GET_SIZE(HDRP(NEXT_BLKP(bp)));
@@ -280,8 +290,8 @@ coalesce(void *bp)
 		uintptr_t next_block_succ = GET(NEXT_PTR(NEXT_BLKP(bp)));
 		uintptr_t next_block_pred = GET(PREV_PTR(NEXT_BLKP(bp)));
 		
-		printblock(bp);
-		printblock(NEXT_BLKP(bp));
+	//	printf("NEXT: ");
+	//	printblock(NEXT_BLKP(bp));
 		if (next_block_succ && next_block_pred) {
 	//		printf("a\n");
 			PUT(PREV_PTR(next_block_succ), next_block_pred);
@@ -303,10 +313,10 @@ coalesce(void *bp)
 		
 		PUT(HDRP(bp), PACK(size, 0));
 		PUT(FTRP(bp), PACK(size, 0));
-		printf("2\n");
+		//printf("2\n");
 	} else if (!prev_alloc && next_alloc) {         /* Case 3 */
 		size += GET_SIZE(HDRP(PREV_BLKP(bp)));
-		
+
 		if (bp == last_bp) {
 			last_bp = PREV_BLKP(bp);
 		}
@@ -315,6 +325,9 @@ coalesce(void *bp)
 		uintptr_t prev_block_pred = GET(PREV_PTR(PREV_BLKP(bp)));
 				
 		if (prev_block_succ && prev_block_pred) {
+		//	printf("cur bp %p prev BP %p SIZE %p \n", bp, (void *)PREV_BLKP(bp), (void *)GET_SIZE(HDRP(bp)));
+			
+		//	printf("PREV %p SUCC %p \n", (void *)prev_block_pred, (void *)prev_block_succ);
 			PUT(PREV_PTR(prev_block_succ), prev_block_pred);
 			PUT(NEXT_PTR(prev_block_pred), prev_block_succ);
 		}
@@ -332,7 +345,7 @@ coalesce(void *bp)
 		bp = PREV_BLKP(bp);
 		PUT(HDRP(bp), PACK(size, 0));
 		PUT(FTRP(bp), PACK(size, 0));
-		printf("3\n");
+		//printf("3\n");
 	} else {                                        /* Case 4 */
 		size += GET_SIZE(HDRP(PREV_BLKP(bp))) + 
 		    GET_SIZE(FTRP(NEXT_BLKP(bp)));
@@ -365,8 +378,9 @@ coalesce(void *bp)
 		//TODO: Don't do this.
 		uintptr_t prev_block_succ = GET(NEXT_PTR(PREV_BLKP(bp)));
 		uintptr_t prev_block_pred = GET(PREV_PTR(PREV_BLKP(bp)));
-						
-		if (prev_block_succ && next_block_pred) {
+	
+
+		if (prev_block_succ && prev_block_pred) {
 			PUT(PREV_PTR(prev_block_succ), prev_block_pred);
 			PUT(NEXT_PTR(prev_block_pred), prev_block_succ);
 		}
@@ -384,7 +398,7 @@ coalesce(void *bp)
 		bp = PREV_BLKP(bp);
 		PUT(HDRP(bp), PACK(size, 0));
 		PUT(FTRP(bp), PACK(size, 0));
-		printf("4\n");
+		//printf("4\n");
 		
 	}
 	return (bp);
@@ -453,12 +467,14 @@ find_fit(size_t asize)
 		first_fit(asize);
 		next_fit(asize);
 		best_fit(asize);
+		explicit_first_fit(asize);
 	}
 	//return first_fit(asize);
-	return explicit_first_fit(asize);
 	//return next_fit(asize);
 	//return best_fit(asize);
-	
+	return explicit_first_fit(asize);
+	//return explicit_best_fit(asize);
+		
 }
 
 
@@ -480,26 +496,18 @@ explicit_first_fit(size_t asize)
 {
 	void *bp;
 	void *prev = NULL;
-//	printf("\n-------\n");
 	/* Search for the first fit. */
 	for (bp = (void*)beginning_listp; bp; bp = (void*)GET(NEXT_PTR(bp))) {
-		//fprintf(stderr, "BP %p nextptr: %p\n", bp, (void*)GET(NEXT_PTR(bp)));
-		//fprintf(stderr, "BPnextblkp: %p\n", NEXT_BLKP(bp));
-		//printf("Curr %p Prev %p\n", bp, prev);
 		if (bp==(void*)GET(NEXT_PTR(bp))) {
 			printf("error: infinate loop\n");
 		}
 		prev = bp;
-//		printf("next %p\n", (void*)GET(PREV_PTR(bp)));
-		
+
 		if (!GET_ALLOC(HDRP(bp)) && asize <= GET_SIZE(HDRP(bp))) {
-	//		printf("Previous blick is %p\n", (void *)GET(PREV_PTR(bp)));
 			return (bp);
 		}
 	}
-//	printf("\n-------\n");
-//	printf("donasdfe%p\n", (void*)beginning_listp);
-	
+
 	/* No fit was found. */
 	return (NULL);
 }
@@ -538,7 +546,7 @@ void* best_fit(size_t asize)
 	void *bp;
 	void *minimum_pointer = NULL;
 	
-	/* Search for the first fit. */
+	/* Search for the best fit. */
 	for (bp = heap_listp; GET_SIZE(HDRP(bp)) > 0; bp = NEXT_BLKP(bp)) {
 		if (!GET_ALLOC(HDRP(bp))) {
 			if (asize == GET_SIZE(HDRP(bp))) {
@@ -550,6 +558,29 @@ void* best_fit(size_t asize)
 		}
 	}
 
+	return (minimum_pointer);
+}
+
+
+void* 
+explicit_best_fit(size_t asize)
+{
+	void *bp;
+	void *minimum_pointer = NULL;
+
+	/* Search for the best fit. */
+	for (bp = (void*)beginning_listp; bp; bp = (void*)GET(NEXT_PTR(bp))) {
+		
+		if (!GET_ALLOC(HDRP(bp))) {
+			if (asize == GET_SIZE(HDRP(bp))) {
+				return (bp);
+			}
+			else if (GET_SIZE(HDRP(bp)) > asize && (!minimum_pointer || (GET_SIZE(HDRP(bp)) < GET_SIZE(HDRP(minimum_pointer))))) {
+				minimum_pointer = bp;
+			}
+		}
+	}
+	/* No fit was found. */
 	return (minimum_pointer);
 }
 
@@ -574,9 +605,7 @@ place(void *bp, size_t asize)
 		PUT(FTRP(bp), PACK(asize, 1));
 		
 		void* next_blk = NEXT_BLKP(bp);
-		if (GET_SIZE(HDRP(next_blk)) == 0) { // If its the last block, we don't want to point to it.
-			next_blk = NULL;
-		}
+
 		if (next_blk) {
 			PUT(HDRP(next_blk), PACK(csize - asize, 0));
 			PUT(FTRP(next_blk), PACK(csize - asize, 0));
@@ -694,8 +723,10 @@ checkheap(bool verbose)
 
 	if (verbose)
 		printblock(bp);
-	if (GET_SIZE(HDRP(bp)) != 0 || !GET_ALLOC(HDRP(bp)))
+	if (GET_SIZE(HDRP(bp)) != 0 || !GET_ALLOC(HDRP(bp))) {
+		printf("Epilogue %p\n", bp);
 		printf("Bad epilogue header\n");
+	}
 }
 
 /*

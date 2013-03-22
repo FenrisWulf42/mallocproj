@@ -233,7 +233,7 @@ int main(int argc, char **argv)
     if (tracefiles == NULL) {
         tracefiles = default_tracefiles;
         num_tracefiles = sizeof(default_tracefiles) / sizeof(char *) - 1;
-        //num_tracefiles = 6;
+        //num_tracefiles = 8;
 	printf("Using default tracefiles in %s\n", tracedir);
     }	
 
