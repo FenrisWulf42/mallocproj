@@ -656,10 +656,23 @@ static void
 place(void *bp, size_t asize)
 {
 	size_t csize = GET_SIZE(HDRP(bp));   
-	uintptr_t prev_ptr = GET(PREV_PTR(bp));
 	uintptr_t next_ptr = GET(NEXT_PTR(bp));
+	int i;
 	asize = asize;
-/*
+	
+	if (bp == (void*)beginning_heap[heap_index]) {		
+		beginning_heap[heap_index] = (uintptr_t)next_ptr;
+		
+		if (next_ptr) {
+			PUT(PREV_PTR((void *)next_ptr), (uintptr_t)0); 			
+		}
+		//printf("4\n");
+  
+	}
+	else {
+		printf("error2\n");
+	}
+	
 	if ((csize - asize) >= (5*WSIZE)) { 
 		PUT(HDRP(bp), PACK(asize, 1));
 		PUT(FTRP(bp), PACK(asize, 1));
@@ -669,70 +682,25 @@ place(void *bp, size_t asize)
 		if (next_blk) {
 			PUT(HDRP(next_blk), PACK(csize - asize, 0));
 			PUT(FTRP(next_blk), PACK(csize - asize, 0));
-		}
-		if (prev_ptr) {
-			PUT(NEXT_PTR(prev_ptr), (uintptr_t)next_blk);
 			
-			if (next_blk) {
-				PUT(PREV_PTR(next_blk), prev_ptr); 
-				PUT(NEXT_PTR(next_blk), next_ptr);
-				if (next_ptr) {
-					PUT(PREV_PTR(next_ptr), (uintptr_t)next_blk);
-				}
-			}
-			//printf("1\n");
-		}
-		else if (bp == (void*)beginning_heap[heap_index]) {
-
-			if (next_blk) {
-				PUT(PREV_PTR(next_blk), 0); 	
-				//PUT(NEXT_PTR(next_blk), next_ptr); // Redundant??
-				beginning_heap[heap_index] = (uintptr_t)next_blk;							
-				if (next_ptr) {
-					PUT(PREV_PTR(next_ptr), (uintptr_t) next_blk);
-				}
-			}
-			else {
-				if (next_ptr) {
-					PUT(PREV_PTR(next_ptr), 0);
-				}
-				beginning_heap[heap_index] = (uintptr_t)next_ptr;								
-			}
-		//	printf("2\n");
-		}
-		else {
-			printf("error1\n");
-		}
+			for (i = 0; i < NUM_HEAPS; i++) {
 				
-		
-	} else {*/
-		
-		if (prev_ptr) {
-			PUT(NEXT_PTR(prev_ptr), (uintptr_t)next_ptr);
-			if (next_ptr) {
-				PUT(PREV_PTR(next_ptr), prev_ptr); 
+				if ((int)(5*WSIZE * (1 << i)) > (int)asize) {
+					break;
+				}
 			}
-			//printf("3\n");
-
-		}	
-		else if (bp == (void*)beginning_heap[heap_index]) {
-			
-			beginning_heap[heap_index] = (uintptr_t)next_ptr;
-			
-			if (next_ptr) {
-				PUT(PREV_PTR((void *)next_ptr), (uintptr_t)0); 
-				
-			}			
-			//printf("4\n");
-  
-		}
-		else {
-			printf("error2\n");
-		}
+			if (heap_index == -1) {
+				printf("error \n");
+			}
+			PUT(NEXT_PTR(next_blk), beginning_heap[i]);
+			if (beginning_heap[i])
+				PUT(PREV_PTR(beginning_heap[i]), (uintptr_t)next_blk);
+			next_blk = (void *)beginning_heap[i];
+		}						
+	} else {
 		PUT(HDRP(bp), PACK(csize, 1));
-		PUT(FTRP(bp), PACK(csize, 1));
-				
-//	}
+		PUT(FTRP(bp), PACK(csize, 1));				
+	}
 }
 
 /* 
