@@ -41,7 +41,7 @@ team_t team = {
 /* Basic constants and macros: */
 #define WSIZE      sizeof(void *) /* Word and header/footer size (bytes) */
 #define DSIZE      (2 * WSIZE)    /* Doubleword size (bytes) */
-#define CHUNKSIZE  (1 << 10)      /* Extend heap by this amount (bytes) */
+#define CHUNKSIZE  (1 << 12)      /* Extend heap by this amount (bytes) */
 
 #define NUM_HEAPS	21
 
@@ -84,6 +84,7 @@ static void *init_heap(size_t words);
 static void place(void *bp, size_t asize);
 void *find_fit(size_t asize);
 void *first_fit(size_t asize);
+void *segregated_first_fit(size_t asize);
 void *explicit_first_fit(size_t asize);
 void *next_fit(size_t asize);
 void *best_fit(size_t asize);
@@ -144,7 +145,6 @@ mm_malloc(size_t size)
 	size_t extendsize; /* Amount to extend heap if no fit */
 	int i;
 	heap_index = -1;
-	int num_blocks; 
 		
 	/* Ignore spurious requests. */
 	if (size == 0)
@@ -157,32 +157,34 @@ mm_malloc(size_t size)
 		asize = size + 2 * DSIZE;
 		asize = (WSIZE * ((asize + (WSIZE - 1)) / WSIZE));
 	}
-	
-	num_blocks = (int)((asize/5/WSIZE));
-	
+	extendsize = asize;
 	for (i = 0; i < NUM_HEAPS; i++) {
-		if (num_blocks <= 1 << i) {
+		
+		if ((int)(5*WSIZE * (1 << i)) > (int)asize) {
 			heap_index = i;
+			extendsize = 5*WSIZE * (1 << i); //TODO: See if this is necessary??
 			break;
 		}
 	}
 	if (heap_index == -1) {
 		printf("error \n");
 	}
-	
-	//printf("Number of %d and %p\n", heap_index, (void *) asize);
+	//if (beginning_heap[heap_index])
+	//	printf("a %p b %p c %p d %d\n", (void *)asize, (void *)GET_SIZE(HDRP(beginning_heap[heap_index])), (void *) extendsize, heap_index);
 	/* Search the free list for a fit. */
 	if ((bp = find_fit(asize)) != NULL) {
 		place(bp, asize);
-		return bp;
-		
+		return bp;		
 	}
+	
+//	printf("index %d size %p math %p\n", heap_index, (void *)(extendsize), (void *)(5*WSIZE * (1 << i)));
 
 	/* No fit found.  Get more memory and place the block. */
-	extendsize = MAX(asize, CHUNKSIZE);
+	//extendsize = MAX(extendsize, CHUNKSIZE);
 	if ((bp = extend_heap(extendsize / WSIZE)) == NULL)  
 		return (NULL);
 	place(bp, asize);
+
 	return bp;
 } 
 
@@ -196,9 +198,9 @@ mm_malloc(size_t size)
 void
 mm_free(void *bp)
 {
+	
 	size_t size;
-	int num_blocks; 
-		int i;
+	int i;
 	heap_index = -1;
 	/* Ignore spurious requests. */
 	if (bp == NULL)
@@ -209,19 +211,17 @@ mm_free(void *bp)
 	PUT(HDRP(bp), PACK(size, 0));
 	PUT(FTRP(bp), PACK(size, 0));
 
-	num_blocks = (int)((size/5/WSIZE));
-
+	
 	for (i = 0; i < NUM_HEAPS; i++) {
-		if (num_blocks <= 1 << i) {
-			heap_index = i;
+			
+		if ((int)(5*WSIZE * (1 << i)) > (int)size) {
+			heap_index = i - 1;
 			break;
 		}
 	}
 	if (heap_index == -1) {
 		printf("error \n");
 	}
-	
-
 	
 	//bp = coalesce(bp);
 
@@ -402,7 +402,7 @@ extend_heap(size_t words)
 {
 	void *bp;
 	size_t size;
-
+	
 	/* Allocate an even number of words to maintain alignment. */
 	size = (words % 2) ? (words + 1) * WSIZE : words * WSIZE;
 	if ((bp = mem_sbrk(size)) == (void *)-1)  
@@ -457,10 +457,11 @@ init_heap(size_t words)
 		/* Coalesce if the previous block was free. */
 	//	bp = coalesce(bp);
 		
-		block_size = (5 * 1 << (i));
+		block_size = (5 * (1 << i)) * WSIZE;
+
 		for (j = 0; j < (int) (words / block_size); j++) {
-			PUT(HDRP(bp), PACK(block_size * WSIZE, 0));    
-			PUT(FTRP(bp), PACK(block_size * WSIZE, 0));    /* Set new size */
+			PUT(HDRP(bp), PACK(block_size, 0));    
+			PUT(FTRP(bp), PACK(block_size, 0));    /* Set new size */
 
 			/* Set pointers */
 			PUT(PREV_PTR(bp), 0);
@@ -469,6 +470,7 @@ init_heap(size_t words)
 				PUT(PREV_PTR((void *)beginning_heap[i]), (uintptr_t)bp);
 			}			
 			beginning_heap[i] = (uintptr_t)bp;
+			
 			bp = NEXT_BLKP(bp);
 		}
 	}
@@ -499,9 +501,9 @@ find_fit(size_t asize)
 	//return first_fit(asize);
 	//return next_fit(asize);
 	//return best_fit(asize);
-	return explicit_first_fit(asize);
+	//return explicit_first_fit(asize);
 	//return explicit_best_fit(asize);
-		
+	return segregated_first_fit(asize);
 }
 
 
@@ -525,13 +527,23 @@ explicit_first_fit(size_t asize)
 	void *prev = NULL;
 	/* Search for the first fit. */
 	for (bp = (void*)beginning_heap[heap_index]; bp; bp = (void*)GET(NEXT_PTR(bp))) {
+		
 		if (bp==(void*)GET(NEXT_PTR(bp))) {
 			printf("error: infinate loop\n");
 		}
 		prev = bp;
-
-		if (!GET_ALLOC(HDRP(bp)) && asize <= GET_SIZE(HDRP(bp))) {
-			return (bp);
+		asize=asize;
+		if (!GET_ALLOC(HDRP(bp)) ) {
+		//	printf("a %p b %p\n", (void*)asize, (void*)GET_SIZE(HDRP(bp)));
+			if (asize <= GET_SIZE(HDRP(bp))) {
+				return (bp);
+			}
+			else {
+				printf("asize %p getsize %p\n",(void*)asize, (void*)GET_SIZE(HDRP(bp)));
+			}
+		}
+		else {
+			printf("1\n");	
 		}
 	}
 
@@ -539,7 +551,28 @@ explicit_first_fit(size_t asize)
 	return (NULL);
 }
 
+void* 
+segregated_first_fit(size_t asize)
+{
+	int i;
+	asize=asize;
+	/* Search for the first fit. */
+	for (i = heap_index; i < NUM_HEAPS; i++) {
+		if (beginning_heap[i]) {
+			heap_index = i;
+			//printf("thisretuned\n");
+			return ((void *)beginning_heap[i]);
+		}
+		else {
+		
+//			printf("i: %d\n", i);
+		}
 
+	}
+	//printf("this\n");
+	/* No fit was found. */
+	return (NULL);
+}
 
 void *
 next_fit(size_t asize)
@@ -550,7 +583,6 @@ next_fit(size_t asize)
 	/* Search for the first fit. */
 	for (bp = NEXT_BLKP(last_bp); GET_SIZE(HDRP(bp)) > 0; bp = NEXT_BLKP(bp)) {
 		if (!GET_ALLOC(HDRP(bp)) && asize <= GET_SIZE(HDRP(bp))) {
-
 			last_bp = bp;
 			return (bp);
 		}
@@ -650,12 +682,12 @@ place(void *bp, size_t asize)
 			}
 			//printf("1\n");
 		}
-		else if (bp == (void*)beginning_listp) {
+		else if (bp == (void*)beginning_heap[heap_index]) {
 
 			if (next_blk) {
 				PUT(PREV_PTR(next_blk), 0); 	
-	//			PUT(NEXT_PTR(next_blk), next_ptr); // Redundant??
-				beginning_listp = (uintptr_t)next_blk;							
+				//PUT(NEXT_PTR(next_blk), next_ptr); // Redundant??
+				beginning_heap[heap_index] = (uintptr_t)next_blk;							
 				if (next_ptr) {
 					PUT(PREV_PTR(next_ptr), (uintptr_t) next_blk);
 				}
@@ -664,7 +696,7 @@ place(void *bp, size_t asize)
 				if (next_ptr) {
 					PUT(PREV_PTR(next_ptr), 0);
 				}
-				beginning_listp = (uintptr_t)next_ptr;								
+				beginning_heap[heap_index] = (uintptr_t)next_ptr;								
 			}
 		//	printf("2\n");
 		}
@@ -673,8 +705,8 @@ place(void *bp, size_t asize)
 		}
 				
 		
-	} else {
-		*/
+	} else {*/
+		
 		if (prev_ptr) {
 			PUT(NEXT_PTR(prev_ptr), (uintptr_t)next_ptr);
 			if (next_ptr) {
@@ -688,7 +720,8 @@ place(void *bp, size_t asize)
 			beginning_heap[heap_index] = (uintptr_t)next_ptr;
 			
 			if (next_ptr) {
-				PUT(PREV_PTR((void *)next_ptr), (uintptr_t)0); 	
+				PUT(PREV_PTR((void *)next_ptr), (uintptr_t)0); 
+				
 			}			
 			//printf("4\n");
   
